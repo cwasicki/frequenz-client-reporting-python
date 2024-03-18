@@ -19,26 +19,29 @@ from frequenz.client.reporting._client import MetricSample
 
 
 # pylint: disable=too-many-locals
-async def main(microgrid_id: int, component_id: int) -> None:
+async def main(
+    microgrid_id: int,
+    component_id: int,
+    metric_names: list[str],
+    start_dt: datetime,
+    end_dt: datetime,
+    page_size: int,
+    service_address: str,
+) -> None:
     """Test the ReportingClient.
 
     Args:
-        microgrid_id: int
-        component_id: int
+        microgrid_id: microgrid ID
+        component_id: component ID
+        metric_names: list of metric names
+        start_dt: start datetime
+        end_dt: end datetime
+        page_size: page size
     """
-    service_address = "localhost:50051"
     client = ReportingClient(service_address)
 
     microgrid_components = [(microgrid_id, [component_id])]
-    metrics = [
-        Metric.DC_POWER,
-        Metric.DC_CURRENT,
-    ]
-
-    start_dt = datetime.fromisoformat("2023-11-21T12:00:00.00+00:00")
-    end_dt = datetime.fromisoformat("2023-11-21T12:01:00.00+00:00")
-
-    page_size = 10
+    metrics = [Metric[mn] for mn in metric_names]
 
     print("########################################################")
     print("Iterate over single metric generator")
@@ -132,8 +135,39 @@ async def main(microgrid_id: int, component_id: int) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("microgrid_id", type=int, help="Microgrid ID")
-    parser.add_argument("component_id", type=int, help="Component ID")
+    parser.add_argument(
+        "--url",
+        type=str,
+        help="URL of the Reporting service",
+        default="localhost:50051",
+    )
+    parser.add_argument("--mid", type=int, help="Microgrid ID", required=True)
+    parser.add_argument("--cid", type=int, help="Component ID", required=True)
+    parser.add_argument(
+        "--metrics",
+        type=str,
+        nargs="+",
+        choices=[e.name for e in Metric],
+        help="List of metrics to process",
+        required=True,
+    )
+    parser.add_argument(
+        "--start",
+        type=datetime.fromisoformat,
+        help="Start datetime in YYYY-MM-DDTHH:MM:SS format",
+        required=True,
+    )
+    parser.add_argument(
+        "--end",
+        type=datetime.fromisoformat,
+        help="End datetime in YYYY-MM-DDTHH:MM:SS format",
+        required=True,
+    )
+    parser.add_argument("--psize", type=int, help="Page size", default=100)
 
     args = parser.parse_args()
-    asyncio.run(main(args.microgrid_id, args.component_id))
+    asyncio.run(
+        main(
+            args.mid, args.cid, args.metrics, args.start, args.end, page_size=args.psize, service_address=args.url,
+        )
+    )
