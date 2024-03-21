@@ -27,6 +27,7 @@ async def main(
     end_dt: datetime,
     page_size: int,
     service_address: str,
+    display: str,
 ) -> None:
     """Test the ReportingClient.
 
@@ -43,18 +44,44 @@ async def main(
     microgrid_components = [(microgrid_id, [component_id])]
     metrics = [Metric[mn] for mn in metric_names]
 
-    print("########################################################")
-    print("Iterate over single metric generator")
+    if len(metrics) == 1:
+        assert display in [
+            "iter",
+            "df",
+        ], "View not supported for single metric generator."
 
-    async for sample in client.iterate_single_metric(
-        microgrid_id=microgrid_id,
-        component_id=component_id,
-        metric=metrics[0],
-        start_dt=start_dt,
-        end_dt=end_dt,
-        page_size=page_size,
-    ):
-        print("Received:", sample)
+        def single_metric_iter() -> AsyncGenerator[MetricSample, None]:
+            """Iterate over single metric.
+
+            Just a wrapper around the client method for readability.
+
+            Yields:
+                Single metric sample
+            """
+            return client.iterate_single_metric(
+                microgrid_id=microgrid_id,
+                component_id=component_id,
+                metric=metrics[0],
+                start_dt=start_dt,
+                end_dt=end_dt,
+                page_size=page_size,
+            )
+
+        print("########################################################")
+        print("Iterate over single metric generator")
+        if display == "iter":
+            async for sample in single_metric_iter():
+                print(sample)
+        elif display == "df":
+            data = [cd async for cd in single_metric_iter()]
+            df = pd.DataFrame(data).set_index("timestamp")
+            # Set option to display all rows
+            pd.set_option("display.max_rows", None)
+            pprint(df)
+        else:
+            raise NotImplementedError(f"Not supported display format: {display}")
+
+        return
 
     ###########################################################################
     #
@@ -116,21 +143,28 @@ async def main(
 
         return ret
 
-    print("########################################################")
-    print("Iterate over generator")
-    async for msample in components_data_iter():
-        print("Received:", msample)
+    if display == "iter":
+        print("########################################################")
+        print("Iterate over generator")
+        async for msample in components_data_iter():
+            print(msample)
 
-    print("########################################################")
-    print("Dumping all data as a single dict")
-    dct = await components_data_dict(components_data_iter())
-    pprint(dct)
+    elif display == "dict":
+        print("########################################################")
+        print("Dumping all data as a single dict")
+        dct = await components_data_dict(components_data_iter())
+        pprint(dct)
 
-    print("########################################################")
-    print("Turn data into a pandas DataFrame")
-    data = [cd async for cd in components_data_iter()]
-    df = pd.DataFrame(data).set_index("timestamp")
-    pprint(df)
+    elif display == "df":
+        print("########################################################")
+        print("Turn data into a pandas DataFrame")
+        data = [cd async for cd in components_data_iter()]
+        df = pd.DataFrame(data).set_index("timestamp")
+        # Set option to display all rows
+        pd.set_option("display.max_rows", None)
+        pprint(df)
+    else:
+        raise ValueError(f"Unknown display format: {display}")
 
 
 if __name__ == "__main__":
@@ -164,10 +198,19 @@ if __name__ == "__main__":
         required=True,
     )
     parser.add_argument("--psize", type=int, help="Page size", default=100)
-
+    parser.add_argument(
+        "--display", choices=["iter", "df", "dict"], help="Display format", default="df"
+    )
     args = parser.parse_args()
     asyncio.run(
         main(
-            args.mid, args.cid, args.metrics, args.start, args.end, page_size=args.psize, service_address=args.url,
+            args.mid,
+            args.cid,
+            args.metrics,
+            args.start,
+            args.end,
+            page_size=args.psize,
+            service_address=args.url,
+            display=args.display,
         )
     )
