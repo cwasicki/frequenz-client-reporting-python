@@ -98,6 +98,23 @@ class ComponentsDataBatch:
                     metric=met,
                     value=value,
                 )
+                for i, bound in enumerate(msample.bounds):
+                    if bound.lower:
+                        yield MetricSample(
+                            timestamp=ts,
+                            microgrid_id=mid,
+                            component_id=cid,
+                            metric=f"{met}_bound_{i}_lower",
+                            value=bound.lower,
+                        )
+                    if bound.upper:
+                        yield MetricSample(
+                            timestamp=ts,
+                            microgrid_id=mid,
+                            component_id=cid,
+                            metric=f"{met}_bound_{i}_upper",
+                            value=bound.upper,
+                        )
             for state in cdata.states:
                 ts = state.sampled_at.ToDatetime()
                 for name, category in {
@@ -140,6 +157,7 @@ class ReportingApiClient(BaseApiClient[ReportingStub, grpcaio.Channel]):
         end_dt: datetime,
         resolution: int | None,
         include_states: bool = False,
+        include_bounds: bool = False,
     ) -> AsyncIterator[MetricSample]:
         """Iterate over the data for a single metric.
 
@@ -151,6 +169,7 @@ class ReportingApiClient(BaseApiClient[ReportingStub, grpcaio.Channel]):
             end_dt: The end date and time.
             resolution: The resampling resolution for the data, represented in seconds.
             include_states: Whether to include the state data.
+            include_bounds: Whether to include the bound data.
 
         Yields:
             A named tuple with the following fields:
@@ -164,6 +183,7 @@ class ReportingApiClient(BaseApiClient[ReportingStub, grpcaio.Channel]):
             end_dt=end_dt,
             resolution=resolution,
             include_states=include_states,
+            include_bounds=include_bounds,
         ):
             for entry in batch:
                 yield entry
@@ -178,6 +198,7 @@ class ReportingApiClient(BaseApiClient[ReportingStub, grpcaio.Channel]):
         end_dt: datetime,
         resolution: int | None,
         include_states: bool = False,
+        include_bounds: bool = False,
     ) -> AsyncIterator[MetricSample]:
         """Iterate over the data for multiple microgrids and components.
 
@@ -189,6 +210,7 @@ class ReportingApiClient(BaseApiClient[ReportingStub, grpcaio.Channel]):
             end_dt: The end date and time.
             resolution: The resampling resolution for the data, represented in seconds.
             include_states: Whether to include the state data.
+            include_bounds: Whether to include the bound data.
 
         Yields:
             A named tuple with the following fields:
@@ -205,6 +227,7 @@ class ReportingApiClient(BaseApiClient[ReportingStub, grpcaio.Channel]):
             end_dt=end_dt,
             resolution=resolution,
             include_states=include_states,
+            include_bounds=include_bounds,
         ):
             for entry in batch:
                 yield entry
@@ -220,6 +243,7 @@ class ReportingApiClient(BaseApiClient[ReportingStub, grpcaio.Channel]):
         end_dt: datetime,
         resolution: int | None,
         include_states: bool = False,
+        include_bounds: bool = False,
     ) -> AsyncIterator[ComponentsDataBatch]:
         """Iterate over the component data batches in the stream.
 
@@ -233,6 +257,7 @@ class ReportingApiClient(BaseApiClient[ReportingStub, grpcaio.Channel]):
             end_dt: The end date and time.
             resolution: The resampling resolution for the data, represented in seconds.
             include_states: Whether to include the state data.
+            include_bounds: Whether to include the bound data.
 
         Yields:
             A ComponentsDataBatch object of microgrid components data.
@@ -257,7 +282,13 @@ class ReportingApiClient(BaseApiClient[ReportingStub, grpcaio.Channel]):
             if include_states
             else PBIncludeOptions.FilterOption.FILTER_OPTION_EXCLUDE
         )
+        incl_bounds = (
+            PBIncludeOptions.FilterOption.FILTER_OPTION_INCLUDE
+            if include_bounds
+            else PBIncludeOptions.FilterOption.FILTER_OPTION_EXCLUDE
+        )
         include_options = PBIncludeOptions(
+            bounds=incl_bounds,
             states=incl_states,
         )
 
