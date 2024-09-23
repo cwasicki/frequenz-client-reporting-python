@@ -5,6 +5,8 @@ from frequenz.client.reporting.sdk_reporting_bridge import list_microgrid_compon
 import asyncio
 from datetime import datetime
 
+from frequenz.client.reporting.formula_engine._formula_generators._pv_power_formula import PVPowerFormula, FormulaGeneratorConfig
+
 from frequenz.client.common.metric import Metric
 def build_graph(json_data: dict) -> ComponentGraph:
     components = []
@@ -47,23 +49,38 @@ async def main():
     key = open("key.txt", "r").read().strip()
     client = ReportingApiClient(server_url="grpc://reporting.api.frequenz.com:443?ssl=true", key=key)
 
-    microgrid_id = 13
-    component_ids = [256, 258]
-    microgrid_components = [
-        (microgrid_id, component_ids),
-    ]
-    start_dt = datetime(2024, 9, 17)
-    end_dt = datetime(2024, 9, 18)
-    resolution = 900
+    def get_receiver(component_id, metric_id):
+        microgrid_id = 13
+        component_ids = [component_id]
+        microgrid_components = [
+            (microgrid_id, component_ids),
+        ]
 
-    async for sample in list_microgrid_components_data_receiver(
-        client,
-        microgrid_components=microgrid_components,
-        metrics=[Metric.AC_ACTIVE_POWER],
-        start_dt=start_dt,
-        end_dt=end_dt,
-        resolution=resolution,
-    ):
+        start_dt = datetime(2024, 9, 17)
+        end_dt = datetime(2024, 9, 18)
+        resolution = 900
+        receiver = list_microgrid_components_data_receiver(
+            client,
+            microgrid_components=microgrid_components,
+            metrics=[Metric.AC_ACTIVE_POWER],
+            start_dt=start_dt,
+            end_dt=end_dt,
+            resolution=resolution,
+        )
+        return receiver
+
+    #async for sample in get_receiver(256, 4711):
+    #    print(sample)
+
+    formula = PVPowerFormula(
+        get_receiver=get_receiver,
+        config=FormulaGeneratorConfig(),
+        component_graph=component_graph,
+    )
+
+    engine = formula.generate()
+    recv = engine.new_receiver()
+    async for sample in recv:
         print(sample)
 
 if __name__ == "__main__":
