@@ -8,10 +8,10 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from frequenz.channels import Receiver, Sender
-from frequenz.client.microgrid import ComponentMetricId
+from frequenz.client.reporting.component_graph import ComponentMetricId
 
-from ..._internal._channels import ChannelRegistry
-from ...microgrid._data_sourcing import ComponentMetricRequest
+#from ..._internal._channels import ChannelRegistry
+#from ...microgrid._data_sourcing import ComponentMetricRequest
 from .. import Sample
 from .._quantities import Quantity, QuantityT
 from ._formula_engine import FormulaBuilder, FormulaEngine
@@ -24,10 +24,11 @@ class ResampledFormulaBuilder(FormulaBuilder[QuantityT]):
 
     def __init__(  # pylint: disable=too-many-arguments
         self,
-        namespace: str,
+        #namespace: str,
         formula_name: str,
-        channel_registry: ChannelRegistry,
-        resampler_subscription_sender: Sender[ComponentMetricRequest],
+        #channel_registry: ChannelRegistry,
+        #resampler_subscription_sender: Sender[ComponentMetricRequest],
+        get_receiver: Callable[[int, ComponentMetricId], Receiver[Sample[Quantity]]],
         metric_id: ComponentMetricId,
         create_method: Callable[[float], QuantityT],
     ) -> None:
@@ -46,43 +47,17 @@ class ResampledFormulaBuilder(FormulaBuilder[QuantityT]):
                 formula is for generating power values, this would be
                 `Power.from_watts`, for example.
         """
-        self._channel_registry: ChannelRegistry = channel_registry
-        self._resampler_subscription_sender: Sender[ComponentMetricRequest] = (
-            resampler_subscription_sender
-        )
-        self._namespace: str = namespace
+        #self._channel_registry: ChannelRegistry = channel_registry
+        #self._resampler_subscription_sender: Sender[ComponentMetricRequest] = (
+        #    resampler_subscription_sender
+        #)
+        #self._namespace: str = namespace
+        self._get_resampled_receiver: Callable[
+            [int, ComponentMetricId], Receiver[Sample[Quantity]]
+        ] = get_receiver
         self._metric_id: ComponentMetricId = metric_id
-        self._resampler_requests: list[ComponentMetricRequest] = []
+        self._resampler_requests: list = [] # list[ComponentMetricRequest] = []
         super().__init__(formula_name, create_method)  # type: ignore[arg-type]
-
-    def _get_resampled_receiver(
-        self, component_id: int, metric_id: ComponentMetricId
-    ) -> Receiver[Sample[QuantityT]]:
-        """Get a receiver with the resampled data for the given component id.
-
-        Args:
-            component_id: The component id for which to get a resampled data receiver.
-            metric_id: A metric ID to fetch for all components in this formula.
-
-        Returns:
-            A receiver to stream resampled data for the given component id.
-        """
-        request = ComponentMetricRequest(self._namespace, component_id, metric_id, None)
-        self._resampler_requests.append(request)
-        resampled_channel = self._channel_registry.get_or_create(
-            Sample[Quantity], request.get_channel_name()
-        )
-        resampled_receiver = resampled_channel.new_receiver().map(
-            lambda sample: Sample(
-                sample.timestamp,
-                (
-                    self._create_method(sample.value.base_value)
-                    if sample.value is not None
-                    else None
-                ),
-            )
-        )
-        return resampled_receiver
 
     async def subscribe(self) -> None:
         """Subscribe to all resampled component metric streams."""

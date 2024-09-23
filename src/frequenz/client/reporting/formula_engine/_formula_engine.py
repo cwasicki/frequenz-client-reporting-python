@@ -16,8 +16,8 @@ from typing import Any, Generic, Self, TypeVar
 
 from frequenz.channels import Broadcast, Receiver
 
-from ..._internal._asyncio import cancel_and_await
-from .. import Sample, Sample3Phase
+#from ..._internal._asyncio import cancel_and_await
+from .._base_types import Sample, Sample3Phase
 from .._quantities import Quantity, QuantityT
 from ._formula_evaluator import FormulaEvaluator
 from ._formula_formatter import format_formula
@@ -316,6 +316,7 @@ class FormulaEngine(Generic[QuantityT]):
                 _logger.warning(
                     "Formula application failed: %s. Error: %s", self._name, err
                 )
+                raise
             else:
                 await sender.send(msg)
 
@@ -429,7 +430,8 @@ class FormulaEngine3Phase(Generic[QuantityT]):
         """Stop a running formula engine."""
         if self._task is None:
             return
-        await cancel_and_await(self._task)
+        # FIXME
+        #await cancel_and_await(self._task)
 
     def __add__(
         self,

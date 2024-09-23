@@ -5,9 +5,9 @@
 
 import logging
 
-from frequenz.client.microgrid import Component, ComponentCategory, ComponentMetricId
+from frequenz.client.reporting.component_graph import Component, ComponentCategory, ComponentMetricId
 
-from ....microgrid import connection_manager
+#from ....microgrid import connection_manager
 from ..._quantities import Power
 from .._formula_engine import FormulaEngine
 from ._fallback_formula_metric_fetcher import FallbackFormulaMetricFetcher
@@ -27,6 +27,7 @@ class PVPowerFormula(FormulaGenerator[Power]):
         # * ComponentNotFound is raised indirectly by _get_pv_power_components
         # * RuntimeError is also raised indirectly by _get_pv_power_components
         self,
+        #component_graph: "ComponentGraph",
     ) -> FormulaEngine[Power]:
         """Make a formula for the PV power production of a microgrid.
 
@@ -42,7 +43,8 @@ class PVPowerFormula(FormulaGenerator[Power]):
             "pv-power", ComponentMetricId.ACTIVE_POWER, Power.from_watts
         )
 
-        component_graph = connection_manager.get().component_graph
+        #component_graph = connection_manager.get().component_graph
+        component_graph = self._component_graph
         component_ids = self._config.component_ids
         if component_ids:
             pv_components = component_graph.components(set(component_ids))
@@ -125,13 +127,9 @@ class PVPowerFormula(FormulaGenerator[Power]):
             fallback_ids = [c.component_id for c in fallback_components]
 
             generator = PVPowerFormula(
-                f"{self._namespace}_fallback_{fallback_ids}",
-                self._channel_registry,
-                self._resampler_subscription_sender,
-                FormulaGeneratorConfig(
-                    component_ids=set(fallback_ids),
-                    allow_fallback=False,
-                ),
+                self._get_receiver,
+                self._config,
+                self._component_graph,
             )
 
             fallback_formulas[primary_component] = FallbackFormulaMetricFetcher(

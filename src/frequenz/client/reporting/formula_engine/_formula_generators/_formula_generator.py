@@ -13,11 +13,11 @@ from dataclasses import dataclass
 from typing import Generic
 
 from frequenz.channels import Sender
-from frequenz.client.microgrid import Component, ComponentCategory, ComponentMetricId
+from frequenz.client.reporting.component_graph import Component, ComponentCategory, ComponentMetricId
 
-from ...._internal._channels import ChannelRegistry
-from ....microgrid import connection_manager
-from ....microgrid._data_sourcing import ComponentMetricRequest
+#from ...._internal._channels import ChannelRegistry
+#from ....microgrid import connection_manager
+#from ....microgrid._data_sourcing import ComponentMetricRequest
 from ..._quantities import QuantityT
 from .._formula_engine import FormulaEngine, FormulaEngine3Phase
 from .._resampled_formula_builder import ResampledFormulaBuilder
@@ -57,10 +57,12 @@ class FormulaGenerator(ABC, Generic[QuantityT]):
 
     def __init__(
         self,
-        namespace: str,
-        channel_registry: ChannelRegistry,
-        resampler_subscription_sender: Sender[ComponentMetricRequest],
+        get_receiver: Callable[[int, ComponentMetricId], Receiver[Sample[Quantity]]],
+        #namespace: str,
+        #channel_registry: ChannelRegistry,
+        #resampler_subscription_sender: Sender[ComponentMetricRequest],
         config: FormulaGeneratorConfig,
+        component_graph: ComponentGraph,
     ) -> None:
         """Create a `FormulaGenerator` instance.
 
@@ -72,17 +74,19 @@ class FormulaGenerator(ABC, Generic[QuantityT]):
                 resampling actor.
             config: configs for the formula generator.
         """
-        self._channel_registry: ChannelRegistry = channel_registry
-        self._resampler_subscription_sender: Sender[ComponentMetricRequest] = (
-            resampler_subscription_sender
-        )
-        self._namespace: str = namespace
+        #self._channel_registry: ChannelRegistry = channel_registry
+        #self._resampler_subscription_sender: Sender[ComponentMetricRequest] = (
+        #    resampler_subscription_sender
+        #)
+        #self._namespace: str = namespace
+        self._get_receiver = get_receiver
         self._config: FormulaGeneratorConfig = config
+        self._component_graph: ComponentGraph = component_graph
 
     @property
     def namespace(self) -> str:
         """Get the namespace for the formula generator."""
-        return self._namespace
+        return "bla" #self._namespace
 
     def _get_builder(
         self,
@@ -91,10 +95,11 @@ class FormulaGenerator(ABC, Generic[QuantityT]):
         create_method: Callable[[float], QuantityT],
     ) -> ResampledFormulaBuilder[QuantityT]:
         builder = ResampledFormulaBuilder(
-            self._namespace,
+            #self._namespace,
             name,
-            self._channel_registry,
-            self._resampler_subscription_sender,
+            #self._channel_registry,
+            #self._resampler_subscription_sender,
+            self._get_receiver,
             component_metric_id,
             create_method,
         )
@@ -110,7 +115,8 @@ class FormulaGenerator(ABC, Generic[QuantityT]):
         Raises:
             ComponentNotFound: If the grid component is not found in the component graph.
         """
-        component_graph = connection_manager.get().component_graph
+        #component_graph = connection_manager.get().component_graph
+        component_graph = self._component_graph
         grid_component = next(
             iter(
                 component_graph.components(
@@ -134,7 +140,8 @@ class FormulaGenerator(ABC, Generic[QuantityT]):
             ComponentNotFound: If no successor components are found in the component graph.
         """
         grid_component = self._get_grid_component()
-        component_graph = connection_manager.get().component_graph
+        #component_graph = connection_manager.get().component_graph
+        component_graph = self._component_graph
         grid_successors = component_graph.successors(grid_component.component_id)
 
         if not grid_successors:
@@ -178,7 +185,8 @@ class FormulaGenerator(ABC, Generic[QuantityT]):
                 * The keys are primary components.
                 * The values are sets of fallback components.
         """
-        graph = connection_manager.get().component_graph
+        #graph = connection_manager.get().component_graph
+        graph = self._component_graph
         fallbacks: dict[Component, set[Component]] = {}
 
         for component in components:
@@ -210,7 +218,8 @@ class FormulaGenerator(ABC, Generic[QuantityT]):
         """
         assert meter.category == ComponentCategory.METER
 
-        graph = connection_manager.get().component_graph
+        #graph = connection_manager.get().component_graph
+        graph = self._component_graph
         successors = graph.successors(meter.component_id)
 
         # All fallbacks has to be of the same type and category.
@@ -241,7 +250,8 @@ class FormulaGenerator(ABC, Generic[QuantityT]):
         Returns:
             bool: True if the provided components are a primary-fallback pair, False otherwise.
         """
-        graph = connection_manager.get().component_graph
+        #graph = connection_manager.get().component_graph
+        graph = self._component_graph
 
         # reassign to decrease the length of the line and make code readable
         fallback = fallback_candidate
